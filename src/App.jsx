@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { LANGUAGES, getLang } from './data/languages.js'
 import { THEMES } from './themes.js'
 import { Fireworks, Floaters, Lanterns, Diya, Rangoli } from './components/Decor.jsx'
@@ -48,8 +48,9 @@ export default function App() {
   const [themeIdx, setThemeIdx] = useState(0)
   const [wish, setWish] = useState(null) // { idx, n }
   const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
   const [burst, setBurst] = useState(0)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [voiceError, setVoiceError] = useState('')
 
   // har language ke liye "shuffle bag": 20 ke 20 wish dikhne ke baad hi repeat hoga
   const bag = useRef({})
@@ -84,7 +85,6 @@ export default function App() {
     while (t === themeIdx) t = Math.floor(Math.random() * THEMES.length)
     setThemeIdx(t)
     setBurst((b) => b + 1)
-    setCopied(false)
   }
 
   const onSubmit = (e) => {
@@ -109,19 +109,57 @@ export default function App() {
 
   // ----- wish text + share -----
   const raw = wish ? lang.messages[wish.idx] : ''
-  const plain = raw.replaceAll('{name}', cleanName)
   const pieces = raw.split('{name}')
-  const siteUrl = window.location.origin + window.location.pathname
-  const shareText = `${plain}\n\n🪔 ${lang.ui.title} 🪔\n${siteUrl}`
-  const waHref = `https://wa.me/?text=${encodeURIComponent(shareText)}`
+  const spokenWish = raw.replaceAll('{name}', cleanName)
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareText)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1800)
-    } catch { /* clipboard blocked */ }
-  }
+  useEffect(() => {
+    if (view !== 'wish' || !wish) return undefined
+
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+      setIsSpeaking(false)
+      setVoiceError(lang.ui.voiceUnavailable)
+      return undefined
+    }
+
+    const synthesis = window.speechSynthesis
+    const utterance = new SpeechSynthesisUtterance(`${spokenWish} ${lang.ui.signature}`)
+    utterance.lang = lang.speechLang
+    utterance.rate = 0.92
+    utterance.pitch = 1.04
+
+    const voices = synthesis.getVoices()
+    const languagePrefix = lang.speechLang.split('-')[0].toLowerCase()
+    const voice = voices.find((item) => item.lang.toLowerCase() === lang.speechLang.toLowerCase())
+      || voices.find((item) => item.lang.toLowerCase().startsWith(`${languagePrefix}-`))
+    if (voice) utterance.voice = voice
+
+    let active = true
+    setVoiceError('')
+    utterance.onstart = () => {
+      if (!active) return
+      setIsSpeaking(true)
+      setVoiceError('')
+    }
+    utterance.onend = () => {
+      if (active) setIsSpeaking(false)
+    }
+    utterance.onerror = (event) => {
+      if (!active) return
+      setIsSpeaking(false)
+      if (event.error !== 'canceled' && event.error !== 'interrupted') {
+        setVoiceError(lang.ui.voiceUnavailable)
+      }
+    }
+
+    synthesis.cancel()
+    synthesis.speak(utterance)
+
+    return () => {
+      active = false
+      synthesis.cancel()
+      setIsSpeaking(false)
+    }
+  }, [view, wish, lang, spokenWish])
 
   const vars = {
     '--bg1': theme.bg[0], '--bg2': theme.bg[1], '--bg3': theme.bg[2],
@@ -170,6 +208,12 @@ export default function App() {
         <section className="card wishcard" style={{ fontFamily: lang.font }}>
           <Rangoli />
           <div className="theme-chip">{theme.emoji} {theme.name}</div>
+          <div className={`avatar-character ${isSpeaking ? 'speaking' : ''}`} role="img" aria-label={lang.ui.avatarLabel}>
+            <div className="avatar-frame">
+              <img src="/saklani-avatar.jpg" alt="" />
+            </div>
+            <div className="voice-bars" aria-hidden="true"><span /><span /><span /><span /><span /></div>
+          </div>
           <Diya size={88} />
           <h2 className="title" style={{ fontFamily: lang.titleFont }}>{lang.ui.title}</h2>
 
@@ -181,19 +225,17 @@ export default function App() {
               </Fragment>
             ))}
           </p>
+          <p className="wish-signature">{lang.ui.signature}</p>
+          {(isSpeaking || voiceError) && (
+            <p className="voice-status" role="status" aria-live="polite">
+              {voiceError || lang.ui.voiceSpeaking}
+            </p>
+          )}
 
           <div className="actions">
             <button type="button" className="btn cta" onClick={() => showWish(langCode)}>
               {lang.ui.next}
             </button>
-            <div className="row">
-              <a className="btn ghost" href={waHref} target="_blank" rel="noopener noreferrer">
-                {lang.ui.whatsapp}
-              </a>
-              <button type="button" className="btn ghost" onClick={copy}>
-                {copied ? lang.ui.copied : lang.ui.copy}
-              </button>
-            </div>
           </div>
 
           <LangPicker compact value={langCode} onPick={pickLang} label={lang.ui.langLabel} />
