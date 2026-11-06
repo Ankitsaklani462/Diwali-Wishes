@@ -5,7 +5,7 @@ export function Fireworks({ colors, additive, burstKey }) {
   const ref = useRef(null)
   const colorsRef = useRef(colors)
   const addRef = useRef(additive)
-  const api = useRef({ burst: () => {} })
+  const api = useRef({ burst: () => {}, rocket: () => {}, anar: () => {} })
   colorsRef.current = colors
   addRef.current = additive
 
@@ -13,7 +13,8 @@ export function Fireworks({ colors, additive, burstKey }) {
     const canvas = ref.current
     const ctx = canvas.getContext('2d')
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let w = 0, h = 0, parts = [], raf = 0, nextAuto = 0
+    let w = 0, h = 0, parts = [], rockets = [], raf = 0, nextAuto = 0
+    let nextRocket = 0, nextAnar = 0, anarUntil = 0, anarX = 0
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -42,7 +43,27 @@ export function Fireworks({ colors, additive, burstKey }) {
         })
       }
     }
+
+    const launchRocket = (x = w * (0.12 + Math.random() * 0.76)) => {
+      if (reduce) return
+      rockets.push({
+        x,
+        y: h * (0.72 + Math.random() * 0.2),
+        targetY: h * (0.12 + Math.random() * 0.34),
+        speed: 5 + Math.random() * 2.5,
+        color: colorsRef.current[Math.floor(Math.random() * colorsRef.current.length)],
+      })
+    }
+
+    const startAnar = (x = w * (0.12 + Math.random() * 0.76)) => {
+      if (reduce) return
+      anarX = x
+      anarUntil = performance.now() + 1100
+    }
+
     api.current.burst = burst
+    api.current.rocket = () => launchRocket()
+    api.current.anar = () => startAnar()
 
     const tick = (t) => {
       ctx.clearRect(0, 0, w, h)
@@ -50,13 +71,55 @@ export function Fireworks({ colors, additive, burstKey }) {
         burst(w * (0.08 + Math.random() * 0.84), h * (0.08 + Math.random() * 0.42))
         nextAuto = t + 1100 + Math.random() * 1500
       }
+      if (!reduce && t > nextRocket) {
+        launchRocket()
+        nextRocket = t + 3400 + Math.random() * 2600
+      }
+      if (!reduce && t > nextAnar) {
+        startAnar()
+        nextAnar = t + 6500 + Math.random() * 3500
+      }
       ctx.globalCompositeOperation = addRef.current ? 'lighter' : 'source-over'
+      if (anarUntil > t) {
+        for (let i = 0; i < 3; i++) {
+          const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.15
+          const speed = 2 + Math.random() * 4
+          const colors = colorsRef.current
+          parts.push({
+            x: anarX + (Math.random() - 0.5) * 8,
+            y: h * 0.9,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: 0.018 + Math.random() * 0.018,
+            size: 1 + Math.random() * 1.8,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            gravity: 0.045,
+          })
+        }
+      }
+      rockets = rockets.filter((rocket) => rocket.y > rocket.targetY)
+      for (const rocket of rockets) {
+        rocket.y -= rocket.speed
+        ctx.globalAlpha = 0.9
+        ctx.strokeStyle = rocket.color
+        ctx.lineWidth = 2
+        ctx.beginPath()
+        ctx.moveTo(rocket.x, rocket.y + 16)
+        ctx.lineTo(rocket.x, rocket.y)
+        ctx.stroke()
+        ctx.fillStyle = '#fff5c2'
+        ctx.beginPath()
+        ctx.arc(rocket.x, rocket.y, 2.5, 0, Math.PI * 2)
+        ctx.fill()
+        if (rocket.y <= rocket.targetY) burst(rocket.x, rocket.y)
+      }
       parts = parts.filter((p) => p.life > 0)
       for (const p of parts) {
         p.x += p.vx
         p.y += p.vy
         p.vx *= 0.985
-        p.vy = p.vy * 0.985 + 0.035
+        p.vy = p.vy * 0.985 + (p.gravity ?? 0.035)
         p.life -= p.decay
         ctx.globalAlpha = Math.max(p.life, 0)
         ctx.fillStyle = p.color
@@ -91,6 +154,10 @@ export function Fireworks({ colors, additive, burstKey }) {
           window.innerWidth * (0.15 + Math.random() * 0.7),
           window.innerHeight * (0.12 + Math.random() * 0.35)
         )
+        if (d === 0) {
+          api.current.rocket()
+          api.current.anar()
+        }
       }, d)
     )
     return () => ids.forEach(clearTimeout)
