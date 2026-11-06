@@ -16,6 +16,8 @@ npm run dev      # http://localhost:5173
 npm run build    # dist/ folder -> Netlify / Vercel / GitHub Pages par daal do
 ```
 
+Phone par check karne ke liye computer aur phone ko same Wi-Fi par rakho, phir terminal mein dikhne wala Network URL phone ke browser mein kholo.
+
 ## GitHub Pages par publish karna
 - Repository ke **Settings → Pages → Build and deployment → Source** mein **GitHub Actions** select karo.
 - `main` branch par push karne ke baad **Actions** tab mein “Deploy to GitHub Pages” workflow complete hone do.

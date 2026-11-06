@@ -15,11 +15,13 @@ body {
 
 .app {
   position: relative;
+  min-height: 100vh;
   min-height: 100dvh;
   padding: 92px 16px 36px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   color: var(--text);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: --bg1 .9s, --bg2 .9s, --bg3 .9s, --accent .9s, --accent2 .9s, color .9s;
 }
 
@@ -139,6 +141,7 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in sr
   display: inline-flex; align-items: center; justify-content: center;
   padding: 14px 18px; border-radius: 16px; border: none; cursor: pointer;
   font: inherit; font-size: 16px; font-weight: 700; text-decoration: none;
+  min-height: 48px;
   transition: transform .15s, box-shadow .2s;
 }
 .btn:hover { transform: translateY(-2px); }
@@ -154,6 +157,7 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in sr
 .link {
   margin-top: 10px; background: none; border: none; cursor: pointer;
   font: inherit; font-size: 14px; color: var(--muted); text-decoration: underline;
+  min-height: 44px;
 }
 
 /* ---------- wish ---------- */
@@ -238,9 +242,29 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in sr
 @keyframes avatarTalk { to { transform: scale(1.025); } }
 @keyframes voiceWave { to { height: 20px; } }
 
+@media (max-width: 600px) {
+  .app {
+    justify-content: flex-start;
+    padding: max(76px, calc(env(safe-area-inset-top) + 52px))
+      max(12px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom))
+      max(12px, env(safe-area-inset-left));
+  }
+  .card { max-width: 480px; padding: 22px 18px 20px; border-radius: 24px; }
+  .title { font-size: clamp(28px, 9vw, 40px); }
+  .sub { font-size: 14px; }
+  input { min-height: 48px; padding: 12px 14px; font-size: 16px; }
+  .chip { min-height: 42px; padding: 8px 12px; font-size: 14px; }
+  .wish { font-size: clamp(19px, 5.5vw, 25px); }
+  .wish-signature { margin-bottom: 18px; }
+  .foot { font-size: 12px; }
+}
+
 @media (max-width: 420px) {
-  .app { padding-top: 84px; }
-  .card { padding: 22px 16px 18px; border-radius: 24px; }
+  .card { padding: 20px 14px 18px; }
+  .langs:not(.compact) { gap: 6px; }
+  .langs:not(.compact) .chip { padding-right: 10px; padding-left: 10px; font-size: 13px; }
+  .wish { font-size: clamp(18px, 5.5vw, 23px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
