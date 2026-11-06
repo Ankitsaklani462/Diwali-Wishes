@@ -57,6 +57,7 @@ export default function App() {
   const lastShown = useRef({})
   const counter = useRef(0)
   const speechUtterance = useRef(null)
+  const availableVoices = useRef([])
 
   const lang = getLang(langCode)
   const theme = THEMES[themeIdx]
@@ -78,7 +79,7 @@ export default function App() {
     utterance.rate = 0.92
     utterance.pitch = 1.04
 
-    const voices = synthesis.getVoices()
+    const voices = availableVoices.current.length ? availableVoices.current : synthesis.getVoices()
     const languagePrefix = language.speechLang.split('-')[0].toLowerCase()
     const voice = voices.find((item) => item.lang.toLowerCase() === language.speechLang.toLowerCase())
       || voices.find((item) => item.lang.toLowerCase().startsWith(`${languagePrefix}-`))
@@ -106,6 +107,7 @@ export default function App() {
 
     setVoiceError('')
     try {
+      synthesis.resume()
       synthesis.speak(utterance)
     } catch {
       speechUtterance.current = null
@@ -167,8 +169,18 @@ export default function App() {
   const pieces = raw.split('{name}')
 
   useEffect(() => {
+    if (!('speechSynthesis' in window)) return undefined
+
+    const synthesis = window.speechSynthesis
+    const updateVoices = () => {
+      availableVoices.current = synthesis.getVoices()
+    }
+
+    updateVoices()
+    synthesis.addEventListener('voiceschanged', updateVoices)
     return () => {
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+      synthesis.removeEventListener('voiceschanged', updateVoices)
+      synthesis.cancel()
     }
   }, [])
 
