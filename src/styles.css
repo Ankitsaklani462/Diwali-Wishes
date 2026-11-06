@@ -42,7 +42,7 @@ body {
 }
 .app.light .stars { display: none; }
 
-.fireworks { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.fireworks { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
 
 .floaters { position: fixed; inset: 0; z-index: 1; pointer-events: none; overflow: hidden; }
 .floaters span {

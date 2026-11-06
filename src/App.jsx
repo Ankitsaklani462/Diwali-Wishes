@@ -56,10 +56,63 @@ export default function App() {
   const bag = useRef({})
   const lastShown = useRef({})
   const counter = useRef(0)
+  const speechUtterance = useRef(null)
 
   const lang = getLang(langCode)
   const theme = THEMES[themeIdx]
   const cleanName = name.trim()
+
+  const speakWish = (code, text) => {
+    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
+      setIsSpeaking(false)
+      setVoiceError(getLang(code).ui.voiceUnavailable)
+      return
+    }
+
+    const language = getLang(code)
+    const synthesis = window.speechSynthesis
+    if (speechUtterance.current) synthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = language.speechLang
+    utterance.rate = 0.92
+    utterance.pitch = 1.04
+
+    const voices = synthesis.getVoices()
+    const languagePrefix = language.speechLang.split('-')[0].toLowerCase()
+    const voice = voices.find((item) => item.lang.toLowerCase() === language.speechLang.toLowerCase())
+      || voices.find((item) => item.lang.toLowerCase().startsWith(`${languagePrefix}-`))
+    if (voice) utterance.voice = voice
+
+    speechUtterance.current = utterance
+    utterance.onstart = () => {
+      if (speechUtterance.current !== utterance) return
+      setIsSpeaking(true)
+      setVoiceError('')
+    }
+    utterance.onend = () => {
+      if (speechUtterance.current !== utterance) return
+      speechUtterance.current = null
+      setIsSpeaking(false)
+    }
+    utterance.onerror = (event) => {
+      if (speechUtterance.current !== utterance) return
+      speechUtterance.current = null
+      setIsSpeaking(false)
+      if (event.error !== 'canceled' && event.error !== 'interrupted') {
+        setVoiceError(language.ui.voiceUnavailable)
+      }
+    }
+
+    setVoiceError('')
+    try {
+      synthesis.speak(utterance)
+    } catch {
+      speechUtterance.current = null
+      setIsSpeaking(false)
+      setVoiceError(language.ui.voiceUnavailable)
+    }
+  }
 
   const nextMessageIdx = (code, total) => {
     let b = bag.current[code]
@@ -79,7 +132,9 @@ export default function App() {
   const showWish = (code) => {
     const l = getLang(code)
     counter.current += 1
-    setWish({ idx: nextMessageIdx(code, l.messages.length), n: counter.current })
+    const idx = nextMessageIdx(code, l.messages.length)
+    setWish({ idx, n: counter.current })
+    speakWish(code, `${l.messages[idx].replaceAll('{name}', cleanName)} ${l.ui.signature}`)
     // pichli theme se alag koi bhi nayi theme
     let t = themeIdx
     while (t === themeIdx) t = Math.floor(Math.random() * THEMES.length)
@@ -110,56 +165,12 @@ export default function App() {
   // ----- wish text + share -----
   const raw = wish ? lang.messages[wish.idx] : ''
   const pieces = raw.split('{name}')
-  const spokenWish = raw.replaceAll('{name}', cleanName)
 
   useEffect(() => {
-    if (view !== 'wish' || !wish) return undefined
-
-    if (!('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) {
-      setIsSpeaking(false)
-      setVoiceError(lang.ui.voiceUnavailable)
-      return undefined
-    }
-
-    const synthesis = window.speechSynthesis
-    const utterance = new SpeechSynthesisUtterance(`${spokenWish} ${lang.ui.signature}`)
-    utterance.lang = lang.speechLang
-    utterance.rate = 0.92
-    utterance.pitch = 1.04
-
-    const voices = synthesis.getVoices()
-    const languagePrefix = lang.speechLang.split('-')[0].toLowerCase()
-    const voice = voices.find((item) => item.lang.toLowerCase() === lang.speechLang.toLowerCase())
-      || voices.find((item) => item.lang.toLowerCase().startsWith(`${languagePrefix}-`))
-    if (voice) utterance.voice = voice
-
-    let active = true
-    setVoiceError('')
-    utterance.onstart = () => {
-      if (!active) return
-      setIsSpeaking(true)
-      setVoiceError('')
-    }
-    utterance.onend = () => {
-      if (active) setIsSpeaking(false)
-    }
-    utterance.onerror = (event) => {
-      if (!active) return
-      setIsSpeaking(false)
-      if (event.error !== 'canceled' && event.error !== 'interrupted') {
-        setVoiceError(lang.ui.voiceUnavailable)
-      }
-    }
-
-    synthesis.cancel()
-    synthesis.speak(utterance)
-
     return () => {
-      active = false
-      synthesis.cancel()
-      setIsSpeaking(false)
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     }
-  }, [view, wish, lang, spokenWish])
+  }, [])
 
   const vars = {
     '--bg1': theme.bg[0], '--bg2': theme.bg[1], '--bg3': theme.bg[2],
@@ -210,7 +221,7 @@ export default function App() {
           <div className="theme-chip">{theme.emoji} {theme.name}</div>
           <div className={`avatar-character ${isSpeaking ? 'speaking' : ''}`} role="img" aria-label={lang.ui.avatarLabel}>
             <div className="avatar-frame">
-              <img src="/saklani-avatar.jpg" alt="" />
+              <img src={`${import.meta.env.BASE_URL}saklani-avatar.jpg`} alt="" />
             </div>
             <div className="voice-bars" aria-hidden="true"><span /><span /><span /><span /><span /></div>
           </div>
@@ -240,7 +251,12 @@ export default function App() {
 
           <LangPicker compact value={langCode} onPick={pickLang} label={lang.ui.langLabel} />
 
-          <button type="button" className="link" onClick={() => setView('home')}>
+          <button type="button" className="link" onClick={() => {
+            window.speechSynthesis?.cancel()
+            speechUtterance.current = null
+            setIsSpeaking(false)
+            setView('home')
+          }}>
             ← {lang.ui.change}
           </button>
         </section>
